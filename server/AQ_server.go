@@ -4,6 +4,7 @@ import(
 	"fmt"
 	"os"
 	"flag"
+	"time"
 	AQLib "github.com/00pauln00/aqi-monitor/lib"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	log "github.com/sirupsen/logrus"
@@ -158,6 +159,55 @@ func (aq *AQServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	log.Info("Previous values of the AirQualityData: ", prevResult)
 
 	if err == nil{
-		
+		//updation
 	}
+
+	//format for the airquality data inserted into the pumicedb
+	aqDataVal := fmt.Sprintf(
+		"Lat:%.6f Lng:%.6f Time:%s Pollutants:%v",
+		applyAQ.Latitude,
+		applyAQ.Longitude,
+		applyAQ.Timestamp.Format(time.RFC3339), // ISO format
+		applyAQ.Pollutants,
+	)
+
+	aqDataLen:= len(aqDataVal)
+
+	log.Info("Current aqData values: ", aqDataVal)
+	log.Info("Write the KeyValue by calling PmdbWriteKV")
+
+	log.Info("Write the KeyValue by calling PmdbWriteKV")
+
+	rc := aq.pso.WriteKV(applyArgs.UserID, applyArgs.PmdbHandler,
+		applyAQ.Location,
+		int64(keyLength), aqDataVal,
+		int64(aqDataLen), colmfamily)
+
+	return int64(rc)
+	
+}
+
+
+func (aq *AQServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
+
+	log.Info("AQ App: Read request received")
+	//Decode the request structure sent by client.
+	reqStruct :=  &AQLib.AirInfo{}
+	decodeErr := aq.pso.DecodeApplicationReq(readArgs.Payload, reqStruct)
+
+	if decodeErr != nil {
+		log.Error("Failed to decode the read request")
+		return -1
+	}
+
+	log.Info("Key passed by client: ", reqStruct.Location)
+
+	keyLen := len(reqStruct.Location)
+	log.Info("Key length: ", keyLen)
+
+	
+
+
+
+
 }
