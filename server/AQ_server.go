@@ -1,15 +1,17 @@
 package main
 
-import(
+import (
+	"flag"
 	"fmt"
 	"os"
-	"flag"
+	"strconv"
+	"strings"
 	"time"
+
 	AQLib "github.com/00pauln00/aqi-monitor/lib"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	log "github.com/sirupsen/logrus"
 )
-
 
 /*
 #include <stdlib.h>
@@ -164,7 +166,7 @@ func (aq *AQServer) Apply(applyArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 	//format for the airquality data inserted into the pumicedb
 	aqDataVal := fmt.Sprintf(
-		"Lat:%.6f Lng:%.6f Time:%s Pollutants:%v",
+		"%.6f %.6f %s %v",
 		applyAQ.Latitude,
 		applyAQ.Longitude,
 		applyAQ.Timestamp.Format(time.RFC3339), // ISO format
@@ -205,7 +207,29 @@ func (aq *AQServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	keyLen := len(reqStruct.Location)
 	log.Info("Key length: ", keyLen)
 
+
+	/* Pass the work as key to PmdbReadKV and get the value from pumicedb */
+	readRsult, readErr := aq.pso.ReadKV(readArgs.UserID, reqStruct.Location,
+		int64(keyLen), colmfamily)
+
+	var splitValues []string
+
+	if readErr == nil {
+		//split space separated values.
+		splitValues = strings.Split(string(readRsult), " ")
+	}
 	
+	lat, _ := strconv.ParseFloat(splitValues[0],64)
+	lon, _ := strconv.ParseFloat(splitValues[1],64)
+	ts,_:= time.Parse(time.RFC3339, splitValues[2])
+
+	pollutants:= make(map[string]float64)
+
+	pollStr:= strings.TrimPrefix(splitValues[3], "map[")
+	pollStr = strings.TrimSuffix(splitValues[3], "]")
+	
+	
+
 
 
 
