@@ -228,9 +228,34 @@ func (aq *AQServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 	pollStr:= strings.TrimPrefix(splitValues[3], "map[")
 	pollStr = strings.TrimSuffix(splitValues[3], "]")
 	
-	
+	for _, kv:= range strings.Split(pollStr, " "){
+		parts:= strings.Split(kv, ":")
+		if(len(parts) == 2){
+			val, _ := strconv.ParseFloat(parts[1],64)
+			pollutants[parts[0]] = val
+		}
+	}
 
 
+	resultAQ:= AQLib.AirInfo{
+		Location: reqStruct.Location,
+		Latitude: lat,
+		Longitude: lon,
+		Timestamp: ts,
+		Pollutants: pollutants,
+	}
+
+	//Copy the encoded result in replyBuffer
+	replySize, copyErr := aq.pso.CopyDataToBuffer(resultAQ,
+		readArgs.ReplyBuf)
+	if copyErr != nil {
+		log.Error("Failed to Copy result in the buffer: %s", copyErr)
+		return -1
+	}
+
+	log.Info("Reply size: ", replySize)
+
+	return replySize
 
 
 
