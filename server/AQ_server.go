@@ -11,15 +11,15 @@ import (
 	AQLib "github.com/00pauln00/aqi-monitor/lib"
 	PumiceDBServer "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceserver"
 	log "github.com/sirupsen/logrus"
-	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
-    PumiceDBFunc "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/server"
+	// PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
+    // PumiceDBFunc "github.com/00pauln00/niova-pumicedb/go/pkg/pumicefunc/server"
 )
 
 /*
 #include <stdlib.h>
 #include <string.h>
 */
-// import "C"
+import "C"
 
 var seqno = 0
 var raftUuid string
