@@ -262,3 +262,65 @@ func (aq *AQServer) Read(readArgs *PumiceDBServer.PmdbCbArgs) int64 {
 
 
 }
+
+func (aq *AQServer) FillReply(applyArgs *PumiceDBServer.PmdbCbArgs) int64{
+	fmt.Println("FillReply callback for duplicate rncui")
+
+	// Decode the request to get the key
+	reqStruct := &AQLib.AirInfo{}
+	decodeErr := aq.pso.DecodeApplicationReq(applyArgs.Payload, reqStruct)
+	if decodeErr != nil {
+		log.Error("Failed to decode the write request in FillReply")
+		return -1
+	}
+
+	key := reqStruct.Location
+	keyLen := len(key)
+
+	// Read the value from the DB
+	readRsult, readErr := aq.pso.ReadKV(applyArgs.UserID, key, int64(keyLen), colmfamily)
+	if readErr != nil {
+		log.Error("Failed to read value from DB in FillReply: ", readErr)
+		return -1
+	}
+	var splitValues []string
+
+	if readErr == nil {
+		//split space separated values.
+		splitValues = strings.Split(string(readRsult), " ")
+	}
+	
+	lat, _ := strconv.ParseFloat(splitValues[0],64)
+	lon, _ := strconv.ParseFloat(splitValues[1],64)
+	ts,_:= time.Parse(time.RFC3339, splitValues[2])
+
+	pollutants:= make(map[string]float64)
+
+	pollStr:= strings.TrimPrefix(splitValues[3], "map[")
+	pollStr = strings.TrimSuffix(splitValues[3], "]")
+	
+	for _, kv:= range strings.Split(pollStr, " "){
+		parts:= strings.Split(kv, ":")
+		if(len(parts) == 2){
+			val, _ := strconv.ParseFloat(parts[1],64)
+			pollutants[parts[0]] = val
+		}
+	}
+
+
+	resultAQ:= AQLib.AirInfo{
+		Location: reqStruct.Location,
+		Latitude: lat,
+		Longitude: lon,
+		Timestamp: ts,
+		Pollutants: pollutants,
+	}
+
+	if applyArgs.ReplyBuf == nil {
+		return -1
+	}
+
+	replySize, _ := aq.pso.CopyDataToBuffer(resultAQ, applyArgs.ReplyBuf)
+
+	return replySize
+}
