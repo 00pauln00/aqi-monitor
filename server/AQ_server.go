@@ -67,7 +67,7 @@ func main() {
 		ColumnFamilies: []string{colmfamily},
 		RaftUuid:       aq.raftUuid,
 		PeerUuid:       aq.peerUuid,
-		PmdbAPI:        aq.pso.PmdbAPI, //aq
+		PmdbAPI:        aq, //aq
 	}
 
 	// Start the pmdb server
