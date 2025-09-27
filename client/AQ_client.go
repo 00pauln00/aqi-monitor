@@ -6,6 +6,10 @@ import (
 	"os"
 	"flag"
 	log "github.com/sirupsen/logrus"
+	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	"time"
+	"errors"
+	"strings"
 
 )
 
@@ -40,6 +44,32 @@ func main(){
 	log.Info("Raft UUID: ", raftUuid)
 	log.Info("Client UUID: ", clientUuid)
 	log.Info("Outfile Path: ", jsonFilePath)
+
+	//Create new client object.
+	clientObj := PumiceDBClient.PmdbClientNew(raftUuid, clientUuid)
+	if clientObj == nil {
+		return
+	}
+	//Start the client
+	clientObj.Start()
+	defer clientObj.Stop()
+
+	//Wait for client to boot up.
+	time.Sleep(5 * time.Second)
+
+	fmt.Println("=================Format to pass write-read entries================")
+	fmt.Println("Single write format ==> WriteOne#rncui#key#Val0#Val1#Val2#outfile_name")
+	fmt.Println("Single read format ==> ReadOne#key#rncui#outfile_name")
+	fmt.Println("Multiple write format ==> WriteMulti#csvfile.csv#outfile_name")
+	fmt.Println("Multiple read format ==> ReadMulti#outfile_name")
+	fmt.Println("Get Leader format ==> GetLeader#outfile_name")
+
+	fmt.Print("Enter Operation(WriteOne/ WriteMulti/ ReadOne/ ReadMulti/ GetLeader/ exit): ")
+
+	//Get console input string
+	var str string
+	//Split the input string.
+	input, _ := getInput(str)
 }
 
 //Positional Arguments.
@@ -89,4 +119,23 @@ func initLogger() {
 	} else {
 		log.SetOutput(f)
 	}
+}
+
+
+//read console input.
+func getInput(keyText string) ([]string, error) {
+
+	// convert CRLF to LF
+	keyText = strings.Replace(cmd, "\n", "", -1)
+
+	input := strings.Split(keyText, "#")
+	for i := range input {
+		input[i] = strings.TrimSpace(input[i])
+	}
+
+	if len(input) == 1 {
+		return nil, errors.New("delimiter not found")
+	}
+
+	return input, nil
 }
