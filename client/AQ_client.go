@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"flag"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
 	"time"
@@ -20,7 +21,7 @@ var (
 	cmd           string
 	rwMap         map[string]map[string]string
 	keyRncuiMap   map[string]string
-	writeMultiMap map[*AQLib.AirInfo]string
+	writeMultiMap map[*AQLib.AirInfo]string //without *
 )
 
 func main(){
@@ -70,6 +71,78 @@ func main(){
 	var str string
 	//Split the input string.
 	input, _ := getInput(str)
+	ops := input[0]
+
+	//Create and Initialize map for write-read outfile.
+	rwMap = make(map[string]map[string]string)
+	//Create and Initialize the map for WriteMulti
+	writeMultiMap = make(map[*AQLib.AirInfo]string)
+
+	///Create temporary UUID
+	tempUuid := uuid.New()
+	tempUuidStr := tempUuid.String()
+
+	//Interface for Operation.
+	// type Operation interface {
+	// 	prepare() error  //Fill Structure.
+	// 	exec() error     //Write-Read Operation.
+	// 	complete() error //Create Output Json File.
+	// }
+
+
+	var opIface Operation
+	/*
+ 	Structure for Common items.
+	*/
+	type opInfo struct {
+		outfileUuid  string
+		outfileName  string
+		jsonFileName string
+		key          string
+		rncui        string
+		inputStr     []string
+		covidData    *AQLib.AirInfo
+		cliObj       *PumiceDBClient.PmdbClientObj
+	}
+
+	/*
+	Structure for WriteOne Operation.
+	*/
+	type wrOne struct {
+		op   opInfo
+		Resp *AQLib.AirInfo
+	}
+
+	/*
+	Structure for ReadOne Operation.
+	*/
+	type rdOne struct {
+		op opInfo
+	}
+	switch ops {
+	case "WriteOne":
+		opIface = &wrOne{
+			op: opInfo{
+				outfileUuid:  tempUuidStr,
+				jsonFileName: input[6],
+				key:          input[2],
+				rncui:        input[1],
+				inputStr:     input,
+				cliObj:       clientObj,
+			},
+		}
+	case "ReadOne":
+		opIface = &rdOne{
+			op: opInfo{
+				outfileUuid:  tempUuidStr,
+				jsonFileName: input[3],
+				key:          input[1],
+				rncui:        input[2],
+				inputStr:     input,
+				cliObj:       clientObj,
+			},
+		}
+	}
 }
 
 //Positional Arguments.
