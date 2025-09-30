@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	PumiceDBClient "github.com/00pauln00/niova-pumicedb/go/pkg/pumiceclient"
+	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"time"
 	"errors"
 	"strings"
@@ -119,6 +120,33 @@ func main(){
 	type rdOne struct {
 		op opInfo
 	}
+
+	/*
+ 	Structure for WriteMulti Operation.
+	*/
+	type wrMul struct {
+		csvFile string
+		op      opInfo
+	}
+
+	/*
+	Structure for ReadMulti Operation.
+	*/
+	type rdMul struct {
+		multiRead []*AQLib.AirInfo
+		rdRncui   []string
+		op        opInfo
+	}
+
+	/*
+ 	Structure for GetLeader Operation.
+	*/
+	type getLeader struct {
+		op       opInfo
+		pmdbInfo *PumiceDBCommon.PMDBInfo
+	}
+
+
 	switch ops {
 	case "WriteOne":
 		opIface = &wrOne{
@@ -142,6 +170,35 @@ func main(){
 				cliObj:       clientObj,
 			},
 		}
+	case "WriteMulti":
+		opIface = &wrMul{
+			csvFile: input[1],
+			op: opInfo{
+				outfileUuid:  tempUuidStr,
+				jsonFileName: input[2],
+				inputStr:     input,
+				cliObj:       clientObj,
+			},
+		}
+	case "ReadMulti":
+		opIface = &rdMul{
+			op: opInfo{
+				outfileUuid:  tempUuidStr,
+				jsonFileName: input[1],
+				inputStr:     input,
+				cliObj:       clientObj,
+			},
+		}
+	case "GetLeader":
+		opIface = &getLeader{
+			op: opInfo{
+				jsonFileName: input[1],
+				inputStr:     input,
+				cliObj:       clientObj,
+			},
+		}
+	default:
+		fmt.Println("\nEnter valid Operation: WriteOne/ReadOne/WriteMulti/ReadMulti/GetLeader/exit")
 	}
 }
 
