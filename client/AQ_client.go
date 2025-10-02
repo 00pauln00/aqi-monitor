@@ -25,6 +25,8 @@ var (
 	writeMultiMap map[*AQLib.AirInfo]string //without *
 )
 
+
+
 func main(){
 	//Print help message.
 	if len(os.Args) == 1 || os.Args[1] == "-help" || os.Args[1] == "-h" {
@@ -83,69 +85,9 @@ func main(){
 	tempUuid := uuid.New()
 	tempUuidStr := tempUuid.String()
 
-	//Interface for Operation.
-	// type Operation interface {
-	// 	prepare() error  //Fill Structure.
-	// 	exec() error     //Write-Read Operation.
-	// 	complete() error //Create Output Json File.
-	// }
 
 
 	var opIface Operation
-	/*
- 	Structure for Common items.
-	*/
-	type opInfo struct {
-		outfileUuid  string
-		outfileName  string
-		jsonFileName string
-		key          string
-		rncui        string
-		inputStr     []string
-		covidData    *AQLib.AirInfo
-		cliObj       *PumiceDBClient.PmdbClientObj
-	}
-
-	/*
-	Structure for WriteOne Operation.
-	*/
-	type wrOne struct {
-		op   opInfo
-		Resp *AQLib.AirInfo
-	}
-
-	/*
-	Structure for ReadOne Operation.
-	*/
-	type rdOne struct {
-		op opInfo
-	}
-
-	/*
- 	Structure for WriteMulti Operation.
-	*/
-	type wrMul struct {
-		csvFile string
-		op      opInfo
-	}
-
-	/*
-	Structure for ReadMulti Operation.
-	*/
-	type rdMul struct {
-		multiRead []*AQLib.AirInfo
-		rdRncui   []string
-		op        opInfo
-	}
-
-	/*
- 	Structure for GetLeader Operation.
-	*/
-	type getLeader struct {
-		op       opInfo
-		pmdbInfo *PumiceDBCommon.PMDBInfo
-	}
-
 
 	switch ops {
 	case "WriteOne":
@@ -199,6 +141,22 @@ func main(){
 		}
 	default:
 		fmt.Println("\nEnter valid Operation: WriteOne/ReadOne/WriteMulti/ReadMulti/GetLeader/exit")
+	}
+
+	prepErr := opIface.prepare()
+	if prepErr != nil {
+		log.Error("error to call prepare() method")
+		os.Exit(0)
+	}
+	execErr := opIface.exec()
+	if execErr != nil {
+		log.Error("error to call exec() method")
+		os.Exit(0)
+	}
+	compErr := opIface.complete()
+	if compErr != nil {
+		log.Error("error to call complete() method")
+		os.Exit(0)
 	}
 }
 
@@ -269,3 +227,61 @@ func getInput(keyText string) ([]string, error) {
 
 	return input, nil
 }
+
+type opInfo struct {
+	outfileUuid  string
+	outfileName  string
+	jsonFileName string
+	key          string
+	rncui        string
+	inputStr     []string
+	covidData    *AQLib.AirInfo
+	cliObj       *PumiceDBClient.PmdbClientObj
+}
+
+/*
+Structure for WriteOne Operation.
+*/
+type wrOne struct {
+	op   opInfo
+	Resp *AQLib.AirInfo
+}
+
+/*
+Structure for ReadOne Operation.
+*/
+type rdOne struct {
+	op opInfo
+}
+
+/*
+ Structure for WriteMulti Operation.
+*/
+type wrMul struct {
+	csvFile string
+	op      opInfo
+}
+
+/*
+Structure for ReadMulti Operation.
+*/
+type rdMul struct {
+	multiRead []*AQLib.AirInfo
+	rdRncui   []string
+	op        opInfo
+}
+
+/*
+ Structure for GetLeader Operation.
+*/
+type getLeader struct {
+	op       opInfo
+	pmdbInfo *PumiceDBCommon.PMDBInfo
+}
+
+//Interface for Operation.
+// type Operation interface {
+// 	prepare() error  //Fill Structure.
+// 	exec() error     //Write-Read Operation.
+// 	complete() error //Create Output Json File.
+// }
