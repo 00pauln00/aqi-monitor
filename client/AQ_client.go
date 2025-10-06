@@ -12,6 +12,7 @@ import (
 	"time"
 	"errors"
 	"strings"
+	"strconv"
 
 )
 
@@ -24,6 +25,13 @@ var (
 	keyRncuiMap   map[string]string
 	writeMultiMap map[*AQLib.AirInfo]string //without *
 )
+
+type aqData struct{
+	Operation string
+	Status    int
+	Timestamp string
+	Data      map[string]map[string]string
+}
 
 
 
@@ -279,9 +287,50 @@ type getLeader struct {
 	pmdbInfo *PumiceDBCommon.PMDBInfo
 }
 
+
+
 //Interface for Operation.
 // type Operation interface {
 // 	prepare() error  //Fill Structure.
 // 	exec() error     //Write-Read Operation.
 // 	complete() error //Create Output Json File.
 // }
+
+//Get timestamp to dump into json outfile.
+func getCurrentTime() string {
+
+	//Get Timestamp.
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+
+	return timestamp
+}
+
+
+//Fill the Json data into map for WriteOne Operation.
+func(aq *aqData)  fillWriteOne(wrOneObj *wrOne){
+	//Get current time.
+	timestamp := getCurrentTime()
+
+	//fill the value into json structure.
+	aq.Operation = wrOneObj.op.inputStr[0]
+	aq.Timestamp = timestamp
+	aq.Data = rwMap
+
+	StatStr := strconv.Itoa(int(aq.Status))
+	writeMp := map[string]string{
+		"key":    wrOneObj.op.key,
+		"Status": StatStr,
+	}
+
+	if wrOneObj.Resp != nil {
+		writeMp["Location"] = wrOneObj.Resp.Location
+		writeMp["Latitude"] = fmt.Sprintf("%f", wrOneObj.Resp.Latitude)
+		writeMp["Longitude"] = fmt.Sprintf("%f", wrOneObj.Resp.Longitude)
+		writeMp["Timestamp"] = wrOneObj.Resp.Timestamp.Format(time.RFC3339)
+
+		// Add pollutant values
+		for pollutant, value := range wrOneObj.Resp.Pollutants {
+			writeMp[pollutant] = fmt.Sprintf("%f", value)
+		}
+	}
+}
