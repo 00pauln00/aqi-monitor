@@ -334,3 +334,24 @@ func(aq *aqData)  fillWriteOne(wrOneObj *wrOne){
 		}
 	}
 }
+
+//Fill the Json data into map for WriteMulti Operation.
+func (aq *aqData) fillWriteMulti(wm *wrMul) {
+
+	//Get current time.
+	timestamp := getCurrentTime()
+
+	//fill the value into json structure.
+	aq.Operation = wm.op.inputStr[0]
+	aq.Timestamp = timestamp
+	aq.Data = rwMap
+
+	StatStr := strconv.Itoa(int(aq.Status))
+	writeMp := map[string]string{
+		"key":    wm.op.key,
+		"Status": StatStr,
+	}
+
+	//fill write request rwMap into a map.
+	fillDataToMap(writeMp, wm.op.rncui)
+}
