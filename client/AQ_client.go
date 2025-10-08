@@ -362,3 +362,15 @@ func fillDataToMap(mp map[string]string, rncui string) {
 	//Fill rwMap into outer map.
 	rwMap[rncui] = mp
 }
+
+//Fill the Json data into map for ReadOne Operation.
+func (aq *aqData) fillReadOne(rdOneObj *rdOne) {
+
+	//Get current time.
+	timestamp := getCurrentTime()
+
+	//Fill the value into Json structure.
+	aq.Operation = rdOneObj.op.inputStr[0]
+	aq.Timestamp = timestamp
+	aq.Data = rwMap
+}
