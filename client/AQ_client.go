@@ -355,3 +355,10 @@ func (aq *aqData) fillWriteMulti(wm *wrMul) {
 	//fill write request rwMap into a map.
 	fillDataToMap(writeMp, wm.op.rncui)
 }
+
+//Function to read-write data into map.
+func fillDataToMap(mp map[string]string, rncui string) {
+
+	//Fill rwMap into outer map.
+	rwMap[rncui] = mp
+}
