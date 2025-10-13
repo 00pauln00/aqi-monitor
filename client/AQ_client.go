@@ -400,7 +400,19 @@ func (wrObj *wrOne) prepare() error {
 	if tsErr != nil {
 		return fmt.Errorf("invalid timestamp format, must be RFC3339")
 	}
-
+	
+	pollutants := make(map[string]float64)
+	if pollutantStr != "" {
+		for _, kv := range strings.Split(pollutantStr, " ") {
+			parts := strings.Split(kv, ":")
+			if len(parts) == 2 {
+				val, convErr := strconv.ParseFloat(parts[1], 64)
+				if convErr == nil {
+					pollutants[parts[0]] = val
+				}
+			}
+		}
+	}
 	
 
 }
