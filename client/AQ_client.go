@@ -374,3 +374,33 @@ func (aq *aqData) fillReadOne(rdOneObj *rdOne) {
 	aq.Timestamp = timestamp
 	aq.Data = rwMap
 }
+
+
+//prepare function for writeone
+func (wrObj *wrOne) prepare() error {
+	var err error
+	location := wrObj.op.inputStr[2]
+	latStr := wrObj.op.inputStr[3]   
+	lonStr := wrObj.op.inputStr[4]
+	tsStr := wrObj.op.inputStr[5]  
+
+
+	pollutantStr := ""
+	if len(wrObj.op.inputStr) > 6 {
+		pollutantStr = wrObj.op.inputStr[6]
+	}
+
+	lat, latErr := strconv.ParseFloat(latStr, 64)
+	lon, lonErr := strconv.ParseFloat(lonStr, 64)
+	if latErr != nil || lonErr != nil {
+		return fmt.Errorf("invalid latitude or longitude")
+	}
+
+	ts, tsErr := time.Parse(time.RFC3339, tsStr)
+	if tsErr != nil {
+		return fmt.Errorf("invalid timestamp format, must be RFC3339")
+	}
+
+	
+
+}
