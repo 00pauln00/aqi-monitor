@@ -243,7 +243,7 @@ type opInfo struct {
 	key          string
 	rncui        string
 	inputStr     []string
-	covidData    *AQLib.AirInfo
+	aqAppData    	 *AQLib.AirInfo
 	cliObj       *PumiceDBClient.PmdbClientObj
 }
 
@@ -413,6 +413,19 @@ func (wrObj *wrOne) prepare() error {
 			}
 		}
 	}
-	
+
+	wrObj.op.aqAppData =  &AQLib.AirInfo{
+		Location:   location,
+		Latitude:   lat,
+		Longitude:  lon,
+		Timestamp:  ts,
+		Pollutants: pollutants,
+	}
+
+	if wrObj.op.aqAppData == nil {
+		err = fmt.Errorf("prepare() method failed for WriteOne")
+	}
+
+	return err;
 
 }
