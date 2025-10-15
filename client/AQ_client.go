@@ -429,3 +429,11 @@ func (wrObj *wrOne) prepare() error {
 	return err;
 
 }
+
+/*
+  exec() method for  WriteOne to write rwMap
+  and dump to json file.
+*/
+func (wrObj *wrOne) exec() error{
+	
+}
