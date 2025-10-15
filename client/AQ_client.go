@@ -435,5 +435,29 @@ func (wrObj *wrOne) prepare() error {
   and dump to json file.
 */
 func (wrObj *wrOne) exec() error{
+	var errMsg error
+	var wrData = &aqData{}
+	var replySize int64
+	response := make([]byte, 0)
+
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:       wrObj.op.rncui,
+		ReqED:       wrObj.op.aqAppData,
+		GetResponse: 1,
+		ReplySize:   &replySize,
+		Response:    &response,
+	}
+
+	//Perform write Operation.
+	_, err := wrObj.op.cliObj.Put(reqArgs)
+	if err != nil {
+		errMsg = errors.New("exec() method failed for WriteOne.")
+		wrData.Status = -1
+		log.Info("Write key-value failed : ", err)
+	} else {
+		log.Info("Pmdb Write successful!")
+		wrData.Status = 0
+		errMsg = nil
+	}
 	
 }
