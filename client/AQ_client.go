@@ -459,5 +459,24 @@ func (wrObj *wrOne) exec() error{
 		wrData.Status = 0
 		errMsg = nil
 	}
-	
+
+	if reqArgs.Response != nil && len(*reqArgs.Response) > 0 {
+		var decoded AQLib.AirInfo
+		buffer := bytes.NewBuffer(*reqArgs.Response)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&decoded)
+		if err != nil {
+			log.Info("Failed to decode response buffer: ", err)
+		} else {
+			log.Info("Decoded response struct: ", decoded)
+			wrObj.Resp = &decoded
+		}
+	}
+
+	wrData.fillWriteOne(wrObj)
+
+	//Dump structure into json.
+	wrObj.op.outfileName = wrData.dumpIntoJson(wrObj.op.outfileUuid)
+
+	return errMsg
 }
