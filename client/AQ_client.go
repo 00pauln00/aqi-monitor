@@ -243,7 +243,7 @@ type opInfo struct {
 	key          string
 	rncui        string
 	inputStr     []string
-	covidData    *AQLib.AirInfo
+	aqAppData    	 *AQLib.AirInfo
 	cliObj       *PumiceDBClient.PmdbClientObj
 }
 
@@ -373,4 +373,110 @@ func (aq *aqData) fillReadOne(rdOneObj *rdOne) {
 	aq.Operation = rdOneObj.op.inputStr[0]
 	aq.Timestamp = timestamp
 	aq.Data = rwMap
+}
+
+
+//prepare function for writeone
+func (wrObj *wrOne) prepare() error {
+	var err error
+	location := wrObj.op.inputStr[2]
+	latStr := wrObj.op.inputStr[3]   
+	lonStr := wrObj.op.inputStr[4]
+	tsStr := wrObj.op.inputStr[5]  
+
+
+	pollutantStr := ""
+	if len(wrObj.op.inputStr) > 6 {
+		pollutantStr = wrObj.op.inputStr[6]
+	}
+
+	lat, latErr := strconv.ParseFloat(latStr, 64)
+	lon, lonErr := strconv.ParseFloat(lonStr, 64)
+	if latErr != nil || lonErr != nil {
+		return fmt.Errorf("invalid latitude or longitude")
+	}
+
+	ts, tsErr := time.Parse(time.RFC3339, tsStr)
+	if tsErr != nil {
+		return fmt.Errorf("invalid timestamp format, must be RFC3339")
+	}
+	
+	pollutants := make(map[string]float64)
+	if pollutantStr != "" {
+		for _, kv := range strings.Split(pollutantStr, " ") {
+			parts := strings.Split(kv, ":")
+			if len(parts) == 2 {
+				val, convErr := strconv.ParseFloat(parts[1], 64)
+				if convErr == nil {
+					pollutants[parts[0]] = val
+				}
+			}
+		}
+	}
+
+	wrObj.op.aqAppData =  &AQLib.AirInfo{
+		Location:   location,
+		Latitude:   lat,
+		Longitude:  lon,
+		Timestamp:  ts,
+		Pollutants: pollutants,
+	}
+
+	if wrObj.op.aqAppData == nil {
+		err = fmt.Errorf("prepare() method failed for WriteOne")
+	}
+
+	return err;
+
+}
+
+/*
+  exec() method for  WriteOne to write rwMap
+  and dump to json file.
+*/
+func (wrObj *wrOne) exec() error{
+	var errMsg error
+	var wrData = &aqData{}
+	var replySize int64
+	response := make([]byte, 0)
+
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:       wrObj.op.rncui,
+		ReqED:       wrObj.op.aqAppData,
+		GetResponse: 1,
+		ReplySize:   &replySize,
+		Response:    &response,
+	}
+
+	//Perform write Operation.
+	_, err := wrObj.op.cliObj.Put(reqArgs)
+	if err != nil {
+		errMsg = errors.New("exec() method failed for WriteOne.")
+		wrData.Status = -1
+		log.Info("Write key-value failed : ", err)
+	} else {
+		log.Info("Pmdb Write successful!")
+		wrData.Status = 0
+		errMsg = nil
+	}
+
+	if reqArgs.Response != nil && len(*reqArgs.Response) > 0 {
+		var decoded AQLib.AirInfo
+		buffer := bytes.NewBuffer(*reqArgs.Response)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&decoded)
+		if err != nil {
+			log.Info("Failed to decode response buffer: ", err)
+		} else {
+			log.Info("Decoded response struct: ", decoded)
+			wrObj.Resp = &decoded
+		}
+	}
+
+	wrData.fillWriteOne(wrObj)
+
+	//Dump structure into json.
+	wrObj.op.outfileName = wrData.dumpIntoJson(wrObj.op.outfileUuid)
+
+	return errMsg
 }
