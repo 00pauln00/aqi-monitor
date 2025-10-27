@@ -480,3 +480,15 @@ func (wrObj *wrOne) exec() error{
 
 	return errMsg
 }
+
+//Method to dump CovidVaxData structure into json file.
+func (aq *aqData) dumpIntoJson(outfileUuid string) string {
+
+	//prepare path for temporary json file.
+	tempOutfileName := jsonFilePath + "/" + outfileUuid + ".json"
+	file, _ := json.MarshalIndent(aq, "", "\t")
+	_ = ioutil.WriteFile(tempOutfileName, file, 0644)
+
+	return tempOutfileName
+
+}
