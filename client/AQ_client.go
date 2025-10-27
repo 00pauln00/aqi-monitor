@@ -516,3 +516,32 @@ func (wrObj *wrOne) complete() error {
 
 	return cErr
 }
+
+
+//Copy temporary outfile into actual Json file.
+func copyToJsonFile(tempOutfileName string, jsonFileName string) error {
+
+	var cp_err error
+	//prepare json output filepath.
+	jsonOut := jsonFilePath + "/" + jsonFileName + ".json"
+
+	//Create output json file.
+	os.Create(jsonOut)
+
+	//Copy temporary json file into output json file.
+	_, err := exec.Command("cp", tempOutfileName, jsonOut).Output()
+
+	if err != nil {
+		log.Error("Failed to copy data to json file: %s", err)
+		cp_err = err
+	} else {
+		cp_err = nil
+	}
+
+	//Remove temporary outfile after copying into json outfile.
+	e := os.Remove(tempOutfileName)
+	if e != nil {
+		log.Error("Failed to remove temporary outfile:%s", e)
+	}
+	return cp_err
+}
