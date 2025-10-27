@@ -297,11 +297,11 @@ type getLeader struct {
 
 
 //Interface for Operation.
-// type Operation interface {
-// 	prepare() error  //Fill Structure.
-// 	exec() error     //Write-Read Operation.
-// 	complete() error //Create Output Json File.
-// }
+type Operation interface {
+	prepare() error  //Fill Structure.
+	exec() error     //Write-Read Operation.
+	complete() error //Create Output Json File.
+}
 
 //Get timestamp to dump into json outfile.
 func getCurrentTime() string {
@@ -546,4 +546,70 @@ func copyToJsonFile(tempOutfileName string, jsonFileName string) error {
 		log.Error("Failed to remove temporary outfile:%s", e)
 	}
 	return cp_err
+}
+
+
+//Readone
+
+func (rdObj *rdOne) prepare() error{
+	var err error
+	return err
+}
+
+func (rdObj *rdOne) complete() error{
+	var err error
+	return err
+}
+
+func (rdObj *rdOne) exec() error{
+	var err error
+	return err
+}
+
+//WriteMulti
+func (wmObj *wrMul) prepare() error {
+	var err error
+	return err
+}
+
+func (wmObj *wrMul) complete() error {
+	var err error
+	return err
+}
+
+func (wmObj *wrMul) exec() error {
+	var err error
+	return err
+}
+
+//ReadMulti
+func (rmObj *rdMul) prepare() error {
+	var err error
+	return err
+}
+
+func (rmObj *rdMul) complete() error {
+	var err error
+	return err
+}
+
+func (rmObj *rdMul) exec() error {
+	var err error
+	return err
+}
+
+//getLeader
+func (getleader *getLeader) prepare() error{
+	var err error
+	return err
+}
+
+func (getleader *getLeader) complete() error{
+	var err error
+	return err
+}
+
+func (getleader *getLeader) exec() error{
+	var err error
+	return err
 }
