@@ -497,3 +497,22 @@ func (aq *aqData) dumpIntoJson(outfileUuid string) string {
 	return tempOutfileName
 
 }
+
+/*
+  complete() method for WriteOne to
+  create output Json file.
+*/
+func (wrObj *wrOne) complete() error {
+
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(wrObj.op.outfileName,
+		wrObj.op.jsonFileName)
+
+	if err != nil {
+		cErr = errors.New("complete() method failed for WriteOne.")
+	}
+
+	return cErr
+}
