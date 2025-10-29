@@ -88,7 +88,13 @@ func main(){
 	//Get console input string
 	var str string
 	//Split the input string.
-	input, _ := getInput(str)
+	fmt.Scanln(&str) 
+	cmd = str        
+	input, err := getInput(str)
+	if err != nil {
+		fmt.Println("Invalid input format:", err)
+		return
+	}
 	ops := input[0]
 
 	//Create and Initialize map for write-read outfile.
