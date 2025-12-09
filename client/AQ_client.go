@@ -607,6 +607,20 @@ func (rmObj *rdMul) exec() error {
 //getLeader
 func (getleader *getLeader) prepare() error{
 	var err error
+
+	pmdbItems := &PumiceDBCommon.PMDBInfo{
+		RaftUUID:   raftUuid,
+		ClientUUID: clientUuid,
+	}
+
+	getleader.pmdbInfo = pmdbItems
+
+	if getleader.pmdbInfo == nil {
+		err = errors.New("prepare() method failed for GetLeader Operation.")
+	} else {
+		err = nil
+	}
+
 	return err
 }
 
