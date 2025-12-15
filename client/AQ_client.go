@@ -629,7 +629,23 @@ func (getleader *getLeader) complete() error{
 	return err
 }
 
-func (getleader *getLeader) exec() error{
+//exec() method to get leader.
+func (getleader *getLeader) exec() error {
+
 	var err error
+	var leaderUuid uuid.UUID
+
+	leaderUuid, err = getleader.op.cliObj.PmdbGetLeader()
+
+	if err != nil {
+		return fmt.Errorf("Failed to get Leader UUID")
+	}
+
+	leaderUuidStr := leaderUuid.String()
+	getleader.pmdbInfo.LeaderUUID = leaderUuidStr
+
+	log.Info("Leader uuid is ", getleader.pmdbInfo.LeaderUUID)
+
 	return err
 }
+
