@@ -624,9 +624,24 @@ func (getleader *getLeader) prepare() error{
 	return err
 }
 
-func (getleader *getLeader) complete() error{
-	var err error
-	return err
+/*
+  complete() method for Get Leader to
+  create output Json file.
+*/
+func (getleader *getLeader) complete() error {
+
+	var cerr error
+
+	//prepare path for json file.
+	jsonOutfile := jsonFilePath + "/" + getleader.op.jsonFileName + ".json"
+	file, cerr := json.MarshalIndent(getleader.pmdbInfo, "", "\t")
+	cerr = ioutil.WriteFile(jsonOutfile, file, 0644)
+
+	if cerr != nil {
+		return nil
+	}
+
+	return ioutil.WriteFile(jsonOutfile, file, 0644)
 }
 
 //exec() method to get leader.
