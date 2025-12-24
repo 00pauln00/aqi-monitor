@@ -346,6 +346,9 @@ func(aq *aqData)  fillWriteOne(wrOneObj *wrOne){
 			writeMp[pollutant] = fmt.Sprintf("%f", value)
 		}
 	}
+
+	//fill write request data into a map.
+	fillDataToMap(writeMp, wrOneObj.op.rncui)
 }
 
 //Fill the Json data into map for WriteMulti Operation.
@@ -559,6 +562,7 @@ func copyToJsonFile(tempOutfileName string, jsonFileName string) error {
 
 func (rdObj *rdOne) prepare() error{
 	var err error
+
 	return err
 }
 
