@@ -563,6 +563,16 @@ func copyToJsonFile(tempOutfileName string, jsonFileName string) error {
 func (rdObj *rdOne) prepare() error{
 	var err error
 
+	inputStruct := AQLib.AirInfo{
+		Location: rdObj.op.key,
+	}
+
+	rdObj.op.aqAppData = &inputStruct
+
+	if rdObj.op.aqAppData == nil {
+		err = errors.New("prepare() method failed for ReadOne.")
+	}
+	
 	return err
 }
 
