@@ -612,7 +612,7 @@ func (rdObj *rdOne) exec() error {
 	resStruct := &AQLib.AirInfo{}
 
 	reqArgs := &PumiceDBClient.PmdbReq{
-		Rncui:   rdObj.op.rncui,
+		Rncui:   rdObj.op.rncui, //""
 		Request: request.Bytes(),
 		Reply:   &response,
 		ReqType: PumiceDBCommon.APP_REQ,
