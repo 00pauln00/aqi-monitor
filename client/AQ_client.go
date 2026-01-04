@@ -394,6 +394,18 @@ func (aq *aqData) fillReadOne(rdOneObj *rdOne) {
 	aq.Data = rwMap
 }
 
+// Fill the Json data into map for ReadMulti Operation (Air Quality)
+func (aq *aqData) fillReadMulti(rm *rdMul) {
+
+	// Get current time
+	timestamp := getCurrentTime()
+
+	// Fill the value into JSON structure
+	aq.Operation = rm.op.inputStr[0]
+	aq.Timestamp = timestamp
+	aq.Data = rwMap
+}
+
 
 //prepare function for writeone
 func (wrObj *wrOne) prepare() error {
