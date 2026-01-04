@@ -11,6 +11,7 @@ import (
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"time"
 	"errors"
+	"encoding/csv"
 	"strings"
 	"strconv"
 	"bytes"
@@ -18,6 +19,8 @@ import (
     "encoding/json"
     "io/ioutil"
 	"os/exec"
+	"io"
+	"bufio"
 
 
 
@@ -611,7 +614,7 @@ func (rdObj *rdOne) exec() error {
 	response := make([]byte, 0)
 	resStruct := &AQLib.AirInfo{}
 
-	reqArgs := &PumiceDBClient.PmdbReq{
+	reqArgs := &PumiceDBClient.PmdbReq{ //pmdb request error
 		Rncui:   rdObj.op.rncui, //""
 		Request: request.Bytes(),
 		Reply:   &response,
@@ -665,10 +668,75 @@ func (rdObj *rdOne) exec() error {
 
 
 //WriteMulti
+// prepare() method to fill structure for WriteMulti (Air Quality App)
 func (wmObj *wrMul) prepare() error {
-	var err error
-	return err
+
+	// Create and initialize key-rncui map
+	keyRncuiMap = make(map[string]string)
+
+	// Parse CSV file
+	fp := parseCSV(wmObj.csvFile)
+
+	for {
+		// Read each record from CSV
+		record, err := fp.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Error("CSV read error:", err)
+			continue
+		}
+
+		// Parse latitude & longitude
+		lat, latErr := strconv.ParseFloat(record[1], 64)
+		lon, lonErr := strconv.ParseFloat(record[2], 64)
+		if latErr != nil || lonErr != nil {
+			log.Error("Invalid latitude/longitude:", record)
+			continue
+		}
+
+		// Parse timestamp
+		ts, tsErr := time.Parse(time.RFC3339, record[3])
+		if tsErr != nil {
+			log.Error("Invalid timestamp:", record[3])
+			continue
+		}
+
+		// Parse pollutants
+		pollutants := make(map[string]float64)
+		if len(record) > 4 && record[4] != "" {
+			for _, kv := range strings.Split(record[4], " ") {
+				parts := strings.Split(kv, ":")
+				if len(parts) == 2 {
+					val, convErr := strconv.ParseFloat(parts[1], 64)
+					if convErr == nil {
+						pollutants[parts[0]] = val
+					}
+				}
+			}
+		}
+
+		// Fill AirInfo structure
+		airInfo := &AQLib.AirInfo{
+			Location:   record[0],
+			Latitude:   lat,
+			Longitude:  lon,
+			Timestamp:  ts,
+			Pollutants: pollutants,
+		}
+
+		// Fill writeMulti map
+		writeMultiMap[airInfo] = "record_struct"
+	}
+
+	if len(writeMultiMap) == 0 {
+		return errors.New("prepare() method failed for WriteMulti: no valid CSV records")
+	}
+
+	return nil
 }
+
 
 func (wmObj *wrMul) complete() error {
 	var cErr error
@@ -677,7 +745,7 @@ func (wmObj *wrMul) complete() error {
 	err := copyToJsonFile(wmObj.op.outfileName,
 		wmObj.op.jsonFileName)
 	if err != nil {
-		cErr = errors.New("complete() method failed for ReadOne.")
+		cErr = errors.New("complete() method failed for WrtieMulti.")
 	}
 
 	return cErr
@@ -764,3 +832,26 @@ func (getleader *getLeader) exec() error {
 	return err
 }
 
+//parse csv file.
+func parseCSV(filename string) (fp *csv.Reader) {
+
+	// open the filei
+	csvfile, err := os.Open(filename)
+	if err != nil {
+		log.Error("Error to open the csv file:", err)
+	}
+
+	// Skip first row (line)
+	row1, err := bufio.NewReader(csvfile).ReadSlice('\n')
+	if err != nil {
+		log.Error("Error to skip first row from csvfile:", err)
+	}
+	_, err = csvfile.Seek(int64(len(row1)), io.SeekStart)
+	if err != nil {
+		log.Error(err)
+	}
+	// Parse the file
+	fp = csv.NewReader(csvfile)
+
+	return fp
+}
