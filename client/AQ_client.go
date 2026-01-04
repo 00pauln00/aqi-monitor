@@ -931,3 +931,23 @@ func parseCSV(filename string) (fp *csv.Reader) {
 
 	return fp
 }
+
+/*
+  This function stores rncui for all AQ csv records
+  into keyRncuiMap and returns the generated rncui.
+*/
+func getRncui(keyRncuiMap map[string]string,
+	aq *AQLib.AirInfo) string {
+
+	// Generate app UUID
+	appUuid := uuid.New()
+	appUuidStr := appUuid.String()
+
+	// Create rncui string
+	rncui := appUuidStr + ":0:0:0:0"
+
+	// Map Location → rncui
+	keyRncuiMap[aq.Location] = rncui
+
+	return rncui
+}
