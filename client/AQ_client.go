@@ -303,6 +303,12 @@ type getLeader struct {
 	pmdbInfo *PumiceDBCommon.PMDBInfo
 }
 
+/*
+ Structue to fill map in json file.
+*/
+type KeyRncuiData struct {
+	KRMap map[string]string
+}
 
 
 //Interface for Operation.
@@ -407,6 +413,7 @@ func (aq *aqData) fillReadMulti(rm *rdMul) {
 }
 
 
+//wrOne
 //prepare function for writeone
 func (wrObj *wrOne) prepare() error {
 	var err error
@@ -763,10 +770,67 @@ func (wmObj *wrMul) complete() error {
 	return cErr
 }
 
+/*
+  exec() method for WriteMulti to write AQ data
+  from csv file and dump to json file.
+*/
 func (wmObj *wrMul) exec() error {
-	var err error
-	return err
+
+	var wErr error
+	var wmData = &aqData{}
+	var reqArgs PumiceDBClient.PmdbReq
+
+	for aqStruct := range writeMultiMap {
+
+		// Get rncui for the key
+		rncui := getRncui(keyRncuiMap, aqStruct)
+
+		// Set key & rncui for json output
+		wmObj.op.key = aqStruct.Location
+		wmObj.op.rncui = rncui
+
+		// Encode AQ struct
+		var request bytes.Buffer
+		enc := gob.NewEncoder(&request)
+		_ = enc.Encode(aqStruct)
+
+		reqArgs.Request = request.Bytes()
+		reqArgs.Rncui = rncui
+		reqArgs.GetReply = 0
+		reqArgs.WriteSeqNum = 0
+		reqArgs.ReqType = PumiceDBCommon.APP_REQ
+
+		// Perform write
+		_, err := wmObj.op.cliObj.Put(reqArgs)
+		if err != nil {
+			wmData.Status = -1
+			log.Info("Write key-value failed : ", err)
+			wErr = errors.New("exec() method failed for WriteMulti Operation.")
+		} else {
+			log.Info("Pmdb Write successful!")
+			wmData.Status = 0
+			wErr = nil
+		}
+
+		// Fill JSON map
+		wmData.fillWriteMulti(wmObj)
+	}
+
+	// Dump AQ data into JSON
+	wmObj.op.outfileName = wmData.dumpIntoJson(wmObj.op.outfileUuid)
+
+	// Dump key ↔ rncui mapping
+	keyRncuiData := &KeyRncuiData{
+		KRMap: keyRncuiMap,
+	}
+
+	kRFname := jsonFilePath + "/" + "keyRncui.json"
+	file, _ := json.MarshalIndent(keyRncuiData, "", "\t")
+	_ = ioutil.WriteFile(kRFname, file, 0644)
+
+	return wErr
 }
+
 
 //ReadMulti
 func (rmObj *rdMul) prepare() error {
