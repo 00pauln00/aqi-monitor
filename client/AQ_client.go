@@ -833,8 +833,38 @@ func (wmObj *wrMul) exec() error {
 
 
 //ReadMulti
+//prepare() method to fill structure for ReadMulti.
 func (rmObj *rdMul) prepare() error {
+
 	var err error
+	var rmRncui []string
+	var rmData []*AQLib.AirInfo
+	var kRData KeyRncuiData
+
+	//Read json file.
+	kRFname := jsonFilePath + "/" + "keyRncui.json"
+	jsonFile, _ := os.Open(kRFname)
+	data, err := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &kRData)
+	keyRncuiMap = kRData.KRMap
+
+	for key, rncui := range keyRncuiMap {
+		log.Info(key, ":", rncui)
+		crd := AQLib.AirInfo{
+			Location: key,
+		}
+		rmRncui = append(rmRncui, rncui)
+		rmObj.rdRncui = rmRncui
+		rmData = append(rmData, &crd)
+		rmObj.multiRead = rmData
+
+		if rmObj.multiRead == nil && rmObj.rdRncui == nil {
+			err = errors.New("prepare() method failed for ReadMulti.")
+		} else {
+			err = nil
+		}
+	}
+
 	return err
 }
 
