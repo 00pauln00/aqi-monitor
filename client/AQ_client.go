@@ -590,10 +590,79 @@ func (rdObj *rdOne) complete() error{
 	return cErr
 }
 
-func (rdObj *rdOne) exec() error{
-	var err error
-	return err
+/*
+  exec() method for ReadOne to read AQ data
+  and dump to json file.
+*/
+func (rdObj *rdOne) exec() error {
+
+	var rErr error
+	rdData := &aqData{}
+
+	// Encode read request
+	var request bytes.Buffer
+	enc := gob.NewEncoder(&request)
+	err := enc.Encode(rdObj.op.aqAppData)
+	if err != nil {
+		log.Error("Encoding error:", err)
+		return err
+	}
+
+	response := make([]byte, 0)
+	resStruct := &AQLib.AirInfo{}
+
+	reqArgs := &PumiceDBClient.PmdbReq{
+		Rncui:   rdObj.op.rncui,
+		Request: request.Bytes(),
+		Reply:   &response,
+		ReqType: PumiceDBCommon.APP_REQ,
+	}
+
+	// Perform Read Operation
+	err = rdObj.op.cliObj.Get(reqArgs)
+	if err != nil {
+		log.Info("Read request failed:", err)
+		rdData.Status = -1
+		rdData.fillReadOne(rdObj)
+		rErr = errors.New("exec() method failed for ReadOne")
+	} else {
+
+		// Decode response
+		dec := gob.NewDecoder(bytes.NewBuffer(*reqArgs.Reply))
+		err = dec.Decode(resStruct)
+		if err != nil {
+			log.Error("Decode error:", err)
+		}
+
+		log.Info("Read result:", resStruct)
+
+		// Convert response to map[string]string
+		readMap := map[string]string{
+			"Location":  resStruct.Location,
+			"Latitude":  fmt.Sprintf("%f", resStruct.Latitude),
+			"Longitude": fmt.Sprintf("%f", resStruct.Longitude),
+			"Timestamp": resStruct.Timestamp.Format(time.RFC3339),
+		}
+
+		// Add pollutants
+		for pollutant, value := range resStruct.Pollutants {
+			readMap[pollutant] = fmt.Sprintf("%f", value)
+		}
+
+		// Fill rwMap
+		fillDataToMap(readMap, rdObj.op.rncui)
+
+		rdData.Status = 0
+		rdData.fillReadOne(rdObj)
+		rErr = nil
+	}
+
+	// Dump JSON
+	rdObj.op.outfileName = rdData.dumpIntoJson(rdObj.op.outfileUuid)
+
+	return rErr
 }
+
 
 //WriteMulti
 func (wmObj *wrMul) prepare() error {
