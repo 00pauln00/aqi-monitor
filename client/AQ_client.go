@@ -671,8 +671,16 @@ func (wmObj *wrMul) prepare() error {
 }
 
 func (wmObj *wrMul) complete() error {
-	var err error
-	return err
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(wmObj.op.outfileName,
+		wmObj.op.jsonFileName)
+	if err != nil {
+		cErr = errors.New("complete() method failed for ReadOne.")
+	}
+
+	return cErr
 }
 
 func (wmObj *wrMul) exec() error {
