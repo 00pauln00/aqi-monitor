@@ -869,8 +869,17 @@ func (rmObj *rdMul) prepare() error {
 }
 
 func (rmObj *rdMul) complete() error {
-	var err error
-	return err
+
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(rmObj.op.outfileName,
+		rmObj.op.jsonFileName)
+	if err != nil {
+		cErr = errors.New("complete() method failed for ReadMulti.")
+	}
+
+	return cErr
 }
 
 func (rmObj *rdMul) exec() error {
