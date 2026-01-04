@@ -70,6 +70,9 @@ func main() {
 		PmdbAPI:        aq, //aq
 	}
 
+	fmt.Printf("DEBUG: Raft=%s Peer=%s Pso=%+v\n", aq.raftUuid, aq.peerUuid, aq.pso)
+
+
 	// Start the pmdb server
 	err := aq.pso.Run()
 

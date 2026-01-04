@@ -11,8 +11,18 @@ import (
 	PumiceDBCommon "github.com/00pauln00/niova-pumicedb/go/pkg/pumicecommon"
 	"time"
 	"errors"
+	"encoding/csv"
 	"strings"
 	"strconv"
+	"bytes"
+    "encoding/gob"
+    "encoding/json"
+    "io/ioutil"
+	"os/exec"
+	"io"
+	"bufio"
+
+
 
 )
 
@@ -81,7 +91,13 @@ func main(){
 	//Get console input string
 	var str string
 	//Split the input string.
-	input, _ := getInput(str)
+	fmt.Scanln(&str) 
+	cmd = str        
+	input, err := getInput(str)
+	if err != nil {
+		fmt.Println("Invalid input format:", err)
+		return
+	}
 	ops := input[0]
 
 	//Create and Initialize map for write-read outfile.
@@ -243,7 +259,7 @@ type opInfo struct {
 	key          string
 	rncui        string
 	inputStr     []string
-	covidData    *AQLib.AirInfo
+	aqAppData    	 *AQLib.AirInfo
 	cliObj       *PumiceDBClient.PmdbClientObj
 }
 
@@ -287,14 +303,20 @@ type getLeader struct {
 	pmdbInfo *PumiceDBCommon.PMDBInfo
 }
 
+/*
+ Structue to fill map in json file.
+*/
+type KeyRncuiData struct {
+	KRMap map[string]string
+}
 
 
 //Interface for Operation.
-// type Operation interface {
-// 	prepare() error  //Fill Structure.
-// 	exec() error     //Write-Read Operation.
-// 	complete() error //Create Output Json File.
-// }
+type Operation interface {
+	prepare() error  //Fill Structure.
+	exec() error     //Write-Read Operation.
+	complete() error //Create Output Json File.
+}
 
 //Get timestamp to dump into json outfile.
 func getCurrentTime() string {
@@ -333,6 +355,9 @@ func(aq *aqData)  fillWriteOne(wrOneObj *wrOne){
 			writeMp[pollutant] = fmt.Sprintf("%f", value)
 		}
 	}
+
+	//fill write request data into a map.
+	fillDataToMap(writeMp, wrOneObj.op.rncui)
 }
 
 //Fill the Json data into map for WriteMulti Operation.
@@ -373,4 +398,595 @@ func (aq *aqData) fillReadOne(rdOneObj *rdOne) {
 	aq.Operation = rdOneObj.op.inputStr[0]
 	aq.Timestamp = timestamp
 	aq.Data = rwMap
+}
+
+// Fill the Json data into map for ReadMulti Operation (Air Quality)
+func (aq *aqData) fillReadMulti(rm *rdMul) {
+
+	// Get current time
+	timestamp := getCurrentTime()
+
+	// Fill the value into JSON structure
+	aq.Operation = rm.op.inputStr[0]
+	aq.Timestamp = timestamp
+	aq.Data = rwMap
+}
+
+
+//wrOne
+//prepare function for writeone
+func (wrObj *wrOne) prepare() error {
+	var err error
+	location := wrObj.op.inputStr[2]
+	latStr := wrObj.op.inputStr[3]   
+	lonStr := wrObj.op.inputStr[4]
+	tsStr := wrObj.op.inputStr[5]  
+
+
+	pollutantStr := ""
+	if len(wrObj.op.inputStr) > 6 {
+		pollutantStr = wrObj.op.inputStr[6]
+	}
+
+	lat, latErr := strconv.ParseFloat(latStr, 64)
+	lon, lonErr := strconv.ParseFloat(lonStr, 64)
+	if latErr != nil || lonErr != nil {
+		return fmt.Errorf("invalid latitude or longitude")
+	}
+
+	ts, tsErr := time.Parse(time.RFC3339, tsStr)
+	if tsErr != nil {
+		return fmt.Errorf("invalid timestamp format, must be RFC3339")
+	}
+	
+	pollutants := make(map[string]float64)
+	if pollutantStr != "" {
+		for _, kv := range strings.Split(pollutantStr, " ") {
+			parts := strings.Split(kv, ":")
+			if len(parts) == 2 {
+				val, convErr := strconv.ParseFloat(parts[1], 64)
+				if convErr == nil {
+					pollutants[parts[0]] = val
+				}
+			}
+		}
+	}
+
+	wrObj.op.aqAppData =  &AQLib.AirInfo{
+		Location:   location,
+		Latitude:   lat,
+		Longitude:  lon,
+		Timestamp:  ts,
+		Pollutants: pollutants,
+	}
+
+	if wrObj.op.aqAppData == nil {
+		err = fmt.Errorf("prepare() method failed for WriteOne")
+	}
+
+	return err;
+
+}
+
+/*
+  exec() method for  WriteOne to write rwMap
+  and dump to json file.
+*/
+func (wrObj *wrOne) exec() error{
+	var errMsg error
+	var wrData = &aqData{}
+	var replySize int64
+	response := make([]byte, 0)
+
+	reqArgs := &PumiceDBClient.PmdbReqArgs{
+		Rncui:       wrObj.op.rncui,
+		ReqED:       wrObj.op.aqAppData,
+		GetResponse: 1,
+		ReplySize:   &replySize,
+		Response:    &response,
+	}
+
+	//Perform write Operation.
+	_, err := wrObj.op.cliObj.Put(reqArgs)
+	if err != nil {
+		errMsg = errors.New("exec() method failed for WriteOne.")
+		wrData.Status = -1
+		log.Info("Write key-value failed : ", err)
+	} else {
+		log.Info("Pmdb Write successful!")
+		wrData.Status = 0
+		errMsg = nil
+	}
+
+	if reqArgs.Response != nil && len(*reqArgs.Response) > 0 {
+		var decoded AQLib.AirInfo
+		buffer := bytes.NewBuffer(*reqArgs.Response)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&decoded)
+		if err != nil {
+			log.Info("Failed to decode response buffer: ", err)
+		} else {
+			log.Info("Decoded response struct: ", decoded)
+			wrObj.Resp = &decoded
+		}
+	}
+
+	wrData.fillWriteOne(wrObj)
+
+	//Dump structure into json.
+	wrObj.op.outfileName = wrData.dumpIntoJson(wrObj.op.outfileUuid)
+
+	return errMsg
+}
+
+//Method to dump CovidVaxData structure into json file.
+func (aq *aqData) dumpIntoJson(outfileUuid string) string {
+
+	//prepare path for temporary json file.
+	tempOutfileName := jsonFilePath + "/" + outfileUuid + ".json"
+	file, _ := json.MarshalIndent(aq, "", "\t")
+	_ = ioutil.WriteFile(tempOutfileName, file, 0644)
+
+	return tempOutfileName
+
+}
+
+/*
+  complete() method for WriteOne to
+  create output Json file.
+*/
+func (wrObj *wrOne) complete() error {
+
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(wrObj.op.outfileName,
+		wrObj.op.jsonFileName)
+
+	if err != nil {
+		cErr = errors.New("complete() method failed for WriteOne.")
+	}
+
+	return cErr
+}
+
+
+//Copy temporary outfile into actual Json file.
+func copyToJsonFile(tempOutfileName string, jsonFileName string) error {
+
+	var cp_err error
+	//prepare json output filepath.
+	jsonOut := jsonFilePath + "/" + jsonFileName + ".json"
+
+	//Create output json file.
+	os.Create(jsonOut)
+
+	//Copy temporary json file into output json file.
+	_, err := exec.Command("cp", tempOutfileName, jsonOut).Output()
+
+	if err != nil {
+		log.Error("Failed to copy data to json file: %s", err)
+		cp_err = err
+	} else {
+		cp_err = nil
+	}
+
+	//Remove temporary outfile after copying into json outfile.
+	e := os.Remove(tempOutfileName)
+	if e != nil {
+		log.Error("Failed to remove temporary outfile:%s", e)
+	}
+	return cp_err
+}
+
+
+//Readone
+
+func (rdObj *rdOne) prepare() error{
+	var err error
+
+	inputStruct := AQLib.AirInfo{
+		Location: rdObj.op.key,
+	}
+
+	rdObj.op.aqAppData = &inputStruct
+
+	if rdObj.op.aqAppData == nil {
+		err = errors.New("prepare() method failed for ReadOne.")
+	}
+	
+	return err
+}
+
+func (rdObj *rdOne) complete() error{
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(rdObj.op.outfileName,
+		rdObj.op.jsonFileName)
+
+	if err != nil {
+		cErr = errors.New("complete() method failed for ReadOne.")
+	}
+
+	return cErr
+}
+
+/*
+  exec() method for ReadOne to read AQ data
+  and dump to json file.
+*/
+func (rdObj *rdOne) exec() error {
+
+	var rErr error
+	rdData := &aqData{}
+
+	// Encode read request
+	var request bytes.Buffer
+	enc := gob.NewEncoder(&request)
+	err := enc.Encode(rdObj.op.aqAppData)
+	if err != nil {
+		log.Error("Encoding error:", err)
+		return err
+	}
+
+	response := make([]byte, 0)
+	resStruct := &AQLib.AirInfo{}
+
+	reqArgs := &PumiceDBClient.PmdbReq{ //pmdb request error
+		Rncui:   rdObj.op.rncui, //""
+		Request: request.Bytes(),
+		Reply:   &response,
+		ReqType: PumiceDBCommon.APP_REQ,
+	}
+
+	// Perform Read Operation
+	err = rdObj.op.cliObj.Get(reqArgs)
+	if err != nil {
+		log.Info("Read request failed:", err)
+		rdData.Status = -1
+		rdData.fillReadOne(rdObj)
+		rErr = errors.New("exec() method failed for ReadOne")
+	} else {
+
+		// Decode response
+		dec := gob.NewDecoder(bytes.NewBuffer(*reqArgs.Reply))
+		err = dec.Decode(resStruct)
+		if err != nil {
+			log.Error("Decode error:", err)
+		}
+
+		log.Info("Read result:", resStruct)
+
+		// Convert response to map[string]string
+		readMap := map[string]string{
+			"Location":  resStruct.Location,
+			"Latitude":  fmt.Sprintf("%f", resStruct.Latitude),
+			"Longitude": fmt.Sprintf("%f", resStruct.Longitude),
+			"Timestamp": resStruct.Timestamp.Format(time.RFC3339),
+		}
+
+		// Add pollutants
+		for pollutant, value := range resStruct.Pollutants {
+			readMap[pollutant] = fmt.Sprintf("%f", value)
+		}
+
+		// Fill rwMap
+		fillDataToMap(readMap, rdObj.op.rncui)
+
+		rdData.Status = 0
+		rdData.fillReadOne(rdObj)
+		rErr = nil
+	}
+
+	// Dump JSON
+	rdObj.op.outfileName = rdData.dumpIntoJson(rdObj.op.outfileUuid)
+
+	return rErr
+}
+
+
+//WriteMulti
+// prepare() method to fill structure for WriteMulti (Air Quality App)
+func (wmObj *wrMul) prepare() error {
+
+	// Create and initialize key-rncui map
+	keyRncuiMap = make(map[string]string)
+
+	// Parse CSV file
+	fp := parseCSV(wmObj.csvFile)
+
+	for {
+		// Read each record from CSV
+		record, err := fp.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Error("CSV read error:", err)
+			continue
+		}
+
+		// Parse latitude & longitude
+		lat, latErr := strconv.ParseFloat(record[1], 64)
+		lon, lonErr := strconv.ParseFloat(record[2], 64)
+		if latErr != nil || lonErr != nil {
+			log.Error("Invalid latitude/longitude:", record)
+			continue
+		}
+
+		// Parse timestamp
+		ts, tsErr := time.Parse(time.RFC3339, record[3])
+		if tsErr != nil {
+			log.Error("Invalid timestamp:", record[3])
+			continue
+		}
+
+		// Parse pollutants
+		pollutants := make(map[string]float64)
+		if len(record) > 4 && record[4] != "" {
+			for _, kv := range strings.Split(record[4], " ") {
+				parts := strings.Split(kv, ":")
+				if len(parts) == 2 {
+					val, convErr := strconv.ParseFloat(parts[1], 64)
+					if convErr == nil {
+						pollutants[parts[0]] = val
+					}
+				}
+			}
+		}
+
+		// Fill AirInfo structure
+		airInfo := &AQLib.AirInfo{
+			Location:   record[0],
+			Latitude:   lat,
+			Longitude:  lon,
+			Timestamp:  ts,
+			Pollutants: pollutants,
+		}
+
+		// Fill writeMulti map
+		writeMultiMap[airInfo] = "record_struct"
+	}
+
+	if len(writeMultiMap) == 0 {
+		return errors.New("prepare() method failed for WriteMulti: no valid CSV records")
+	}
+
+	return nil
+}
+
+
+func (wmObj *wrMul) complete() error {
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(wmObj.op.outfileName,
+		wmObj.op.jsonFileName)
+	if err != nil {
+		cErr = errors.New("complete() method failed for WrtieMulti.")
+	}
+
+	return cErr
+}
+
+/*
+  exec() method for WriteMulti to write AQ data
+  from csv file and dump to json file.
+*/
+func (wmObj *wrMul) exec() error {
+
+	var wErr error
+	var wmData = &aqData{}
+	var reqArgs PumiceDBClient.PmdbReq
+
+	for aqStruct := range writeMultiMap {
+
+		// Get rncui for the key
+		rncui := getRncui(keyRncuiMap, aqStruct)
+
+		// Set key & rncui for json output
+		wmObj.op.key = aqStruct.Location
+		wmObj.op.rncui = rncui
+
+		// Encode AQ struct
+		var request bytes.Buffer
+		enc := gob.NewEncoder(&request)
+		_ = enc.Encode(aqStruct)
+
+		reqArgs.Request = request.Bytes()
+		reqArgs.Rncui = rncui
+		reqArgs.GetReply = 0
+		reqArgs.WriteSeqNum = 0
+		reqArgs.ReqType = PumiceDBCommon.APP_REQ
+
+		// Perform write
+		_, err := wmObj.op.cliObj.Put(reqArgs)
+		if err != nil {
+			wmData.Status = -1
+			log.Info("Write key-value failed : ", err)
+			wErr = errors.New("exec() method failed for WriteMulti Operation.")
+		} else {
+			log.Info("Pmdb Write successful!")
+			wmData.Status = 0
+			wErr = nil
+		}
+
+		// Fill JSON map
+		wmData.fillWriteMulti(wmObj)
+	}
+
+	// Dump AQ data into JSON
+	wmObj.op.outfileName = wmData.dumpIntoJson(wmObj.op.outfileUuid)
+
+	// Dump key ↔ rncui mapping
+	keyRncuiData := &KeyRncuiData{
+		KRMap: keyRncuiMap,
+	}
+
+	kRFname := jsonFilePath + "/" + "keyRncui.json"
+	file, _ := json.MarshalIndent(keyRncuiData, "", "\t")
+	_ = ioutil.WriteFile(kRFname, file, 0644)
+
+	return wErr
+}
+
+
+//ReadMulti
+//prepare() method to fill structure for ReadMulti.
+func (rmObj *rdMul) prepare() error {
+
+	var err error
+	var rmRncui []string
+	var rmData []*AQLib.AirInfo
+	var kRData KeyRncuiData
+
+	//Read json file.
+	kRFname := jsonFilePath + "/" + "keyRncui.json"
+	jsonFile, _ := os.Open(kRFname)
+	data, err := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &kRData)
+	keyRncuiMap = kRData.KRMap
+
+	for key, rncui := range keyRncuiMap {
+		log.Info(key, ":", rncui)
+		crd := AQLib.AirInfo{
+			Location: key,
+		}
+		rmRncui = append(rmRncui, rncui)
+		rmObj.rdRncui = rmRncui
+		rmData = append(rmData, &crd)
+		rmObj.multiRead = rmData
+
+		if rmObj.multiRead == nil && rmObj.rdRncui == nil {
+			err = errors.New("prepare() method failed for ReadMulti.")
+		} else {
+			err = nil
+		}
+	}
+
+	return err
+}
+
+func (rmObj *rdMul) complete() error {
+
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(rmObj.op.outfileName,
+		rmObj.op.jsonFileName)
+	if err != nil {
+		cErr = errors.New("complete() method failed for ReadMulti.")
+	}
+
+	return cErr
+}
+
+func (rmObj *rdMul) exec() error {
+	var err error
+	return err
+}
+
+//getLeader
+func (getleader *getLeader) prepare() error{
+	var err error
+
+	pmdbItems := &PumiceDBCommon.PMDBInfo{
+		RaftUUID:   raftUuid,
+		ClientUUID: clientUuid,
+	}
+
+	getleader.pmdbInfo = pmdbItems
+
+	if getleader.pmdbInfo == nil {
+		err = errors.New("prepare() method failed for GetLeader Operation.")
+	} else {
+		err = nil
+	}
+
+	return err
+}
+
+/*
+  complete() method for Get Leader to
+  create output Json file.
+*/
+func (getleader *getLeader) complete() error {
+
+	var cerr error
+
+	//prepare path for json file.
+	jsonOutfile := jsonFilePath + "/" + getleader.op.jsonFileName + ".json"
+	file, cerr := json.MarshalIndent(getleader.pmdbInfo, "", "\t")
+	cerr = ioutil.WriteFile(jsonOutfile, file, 0644)
+
+	if cerr != nil {
+		return nil
+	}
+
+	return ioutil.WriteFile(jsonOutfile, file, 0644)
+}
+
+//exec() method to get leader.
+func (getleader *getLeader) exec() error {
+
+	var err error
+	var leaderUuid uuid.UUID
+
+	leaderUuid, err = getleader.op.cliObj.PmdbGetLeader()
+
+	if err != nil {
+		return fmt.Errorf("Failed to get Leader UUID")
+	}
+
+	leaderUuidStr := leaderUuid.String()
+	getleader.pmdbInfo.LeaderUUID = leaderUuidStr
+
+	log.Info("Leader uuid is ", getleader.pmdbInfo.LeaderUUID)
+
+	return err
+}
+
+//parse csv file.
+func parseCSV(filename string) (fp *csv.Reader) {
+
+	// open the filei
+	csvfile, err := os.Open(filename)
+	if err != nil {
+		log.Error("Error to open the csv file:", err)
+	}
+
+	// Skip first row (line)
+	row1, err := bufio.NewReader(csvfile).ReadSlice('\n')
+	if err != nil {
+		log.Error("Error to skip first row from csvfile:", err)
+	}
+	_, err = csvfile.Seek(int64(len(row1)), io.SeekStart)
+	if err != nil {
+		log.Error(err)
+	}
+	// Parse the file
+	fp = csv.NewReader(csvfile)
+
+	return fp
+}
+
+/*
+  This function stores rncui for all AQ csv records
+  into keyRncuiMap and returns the generated rncui.
+*/
+func getRncui(keyRncuiMap map[string]string,
+	aq *AQLib.AirInfo) string {
+
+	// Generate app UUID
+	appUuid := uuid.New()
+	appUuidStr := appUuid.String()
+
+	// Create rncui string
+	rncui := appUuidStr + ":0:0:0:0"
+
+	// Map Location → rncui
+	keyRncuiMap[aq.Location] = rncui
+
+	return rncui
 }
