@@ -577,8 +577,17 @@ func (rdObj *rdOne) prepare() error{
 }
 
 func (rdObj *rdOne) complete() error{
-	var err error
-	return err
+	var cErr error
+
+	//Copy temporary json file into json outfile.
+	err := copyToJsonFile(rdObj.op.outfileName,
+		rdObj.op.jsonFileName)
+
+	if err != nil {
+		cErr = errors.New("complete() method failed for ReadOne.")
+	}
+
+	return cErr
 }
 
 func (rdObj *rdOne) exec() error{
